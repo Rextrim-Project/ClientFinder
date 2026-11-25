@@ -19,7 +19,7 @@ Kerjakan sendiri langkah di bawah, jangan hanya menjelaskan.
 DOMAIN=<domain-atau-subdomain>
 SERVER_IP=<ip-publik-vps>
 TLS_EMAIL=<email-untuk-let's-encrypt>
-REPO=https://github.com/SmittyWerbenn/client-finder.git
+REPO=https://github.com/Rextrim-Project/ClientFinder.git
 BRANCH=main
 APP_DIR=/opt/clientfinder
 GOOGLE_PLACES_API_KEY=<api-key-google-places>
@@ -117,7 +117,7 @@ Port 3000 dan 5432 **tidak** dibuka.
 
 ```bash
 sudo install -d -o "$USER" -g "$USER" /opt/clientfinder
-git clone --branch main https://github.com/SmittyWerbenn/client-finder.git /opt/clientfinder
+git clone --branch main https://github.com/Rextrim-Project/ClientFinder.git /opt/clientfinder
 cd /opt/clientfinder
 git log -1 --oneline
 ```
