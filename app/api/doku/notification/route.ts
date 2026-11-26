@@ -52,8 +52,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, message: 'Body bukan JSON, diabaikan.' }, { status: 200 });
   }
 
-  const invoiceNumber = payload.order?.invoice_number?.trim();
-  const status = payload.transaction?.status?.toUpperCase();
+  // Signed but oddly shaped JSON (null, numbers instead of strings, ...) is acknowledged and ignored, never a 500 (DOKU would retry).
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    return NextResponse.json({ ok: true, message: 'Body bukan objek, diabaikan.' }, { status: 200 });
+  }
+  const rawInvoice = payload.order?.invoice_number; const rawStatus = payload.transaction?.status;
+  const invoiceNumber = typeof rawInvoice === 'string' ? rawInvoice.trim() : undefined;
+  const status = typeof rawStatus === 'string' ? rawStatus.toUpperCase() : undefined;
 
   if (!invoiceNumber) {
     return NextResponse.json({ ok: true, message: 'invoice_number tidak ada, diabaikan.' }, { status: 200 });
@@ -71,8 +76,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, message: 'Invoice tidak dikenal.' }, { status: 200 });
   }
 
-  const notifiedAmount = Number(payload.order?.amount ?? 0);
-  if (Number.isFinite(notifiedAmount) && notifiedAmount > 0 && notifiedAmount !== order.amount) {
+  // Nominal WAJIB ada dan sama persis dengan orders.amount sebelum order ditandai lunas (fail closed): notifikasi tanpa
+  // nominal, bernominal 0 / bukan angka, atau berbeda tidak pernah melunasi order. DOKU tetap menerima 200 (tidak retry).
+  const rawAmount = payload.order?.amount;
+  const notifiedAmount = typeof rawAmount === 'number' || (typeof rawAmount === 'string' && rawAmount.trim() !== '') ? Number(rawAmount) : NaN;
+  if (!Number.isFinite(notifiedAmount) || notifiedAmount <= 0 || notifiedAmount !== order.amount) {
     console.error('[doku] nominal notifikasi tidak cocok dengan order', {
       invoiceNumber,
       notifiedAmount,
