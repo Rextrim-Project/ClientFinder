@@ -55,7 +55,7 @@ TODO / FIXME / HACK markers in the code: **none**.
 | `npm run typecheck` | Pass |
 | `npm run build` | Pass (exit 0 on the final run; see finding 6) |
 | `tests/e2e.mjs` (existing, fake Places, throw-away SQLite) | 62/62 assertions pass |
-| `tests/e2e.mjs` with the new DOKU section | 73/73 pass. Before the fix the new assertions failed at "Client-Id lain" and "SUCCESS tanpa nominal". |
+| `tests/e2e.mjs` with the new DOKU section | 76/76 pass. Before the fix the new assertions failed at "Client-Id lain" and "SUCCESS tanpa nominal". |
 
 The DOKU section runs only against a local `BASE` with `E2E_DOKU_FAKE=1` and `E2E_DOKU_CLIENT_ID` / `E2E_DOKU_SECRET` set, asserts the fake payment URL, together with a server pointed at the fake DOKU
 endpoint; see README → Verifikasi. Test values only, never real credentials.
@@ -80,5 +80,5 @@ endpoint; see README → Verifikasi. Test values only, never real credentials.
 ## 7. Next actions
 
 - Decide on the `next` upgrade, then confirm that CI passes on a pull request.
-- Open a pull request from `fix/doku-amount-verification` so `ci.yml` runs (pushing the branch alone does not trigger CI).
+- Push blocked (2026-11-26): the GitHub account in use has no write access to `Rextrim-Project/clientfinder`. Once access is granted, push the branch and open a pull request from `fix/doku-amount-verification` so `ci.yml` runs (pushing the branch alone does not trigger CI).
 - Optional: make `markOrderPaid` a single conditional update (finding 3).
