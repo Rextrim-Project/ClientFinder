@@ -33,8 +33,9 @@ Dokumen arsitektur lengkap (diagram alur, matriks RBAC, skema, deployment):
 - **Security**: scrypt password, JWT httpOnly cookie, session revocation,
   rate-limit login, validasi Zod, error response seragam, security headers.
 
-> Tidak ada lagi mode demo/mock, kredit simulasi, maupun static export GitHub
-> Pages. Semua data berasal dari Google Places API dan database.
+> Tidak ada kredit simulasi maupun static export GitHub Pages; data console berasal dari Google Places
+> API dan database. Pengecualian: **mode demo read-only** (`/console?mode=demo`, cookie `cf_demo`) memakai
+> fixture lokal (`lib/demo-data.ts`, `lib/demo-api.ts`) tanpa login. API console tetap mewajibkan sesi sungguhan (checkout, status order, dan webhook DOKU memang publik).
 
 ---
 
@@ -272,8 +273,8 @@ npm run typecheck
 npm run build
 
 # E2E lokal (butuh server + fake Places)
-npm run fake:places                     # terminal 1 → :4010
-npm run dev                             # terminal 2 → :3000
+npm run fake:places                     # terminal 1 → :4010 (Places + DOKU tiruan)
+GOOGLE_PLACES_API_BASE_URL=http://127.0.0.1:4010/v1 npm run dev   # terminal 2 → :3000 (prefix /v1 wajib)
 E2E_SUPERADMIN_EMAIL=<email-seed> E2E_SUPERADMIN_PASSWORD=<password-seed> \
   BASE=http://127.0.0.1:3000 npm run test:e2e
 ```
@@ -282,6 +283,11 @@ Skenario E2E mencakup login/RBAC (403 admin/user), isolasi kategori,
 pagination + filter status website, normalisasi nomor, batas 100 prospek, counter hit
 atomik, audit log per endpoint, update status, export CSV, dan pencabutan sesi
 saat logout. Jalankan pada database kosong (reset `DATABASE_URL` bila perlu).
+
+E2E pembayaran DOKU (opsional) hanya aktif terhadap server lokal (`BASE` = localhost) dengan `E2E_DOKU_FAKE=1`, serta `E2E_DOKU_CLIENT_ID` + `E2E_DOKU_SECRET` sama dengan
+`DOKU_CLIENT_ID` / `DOKU_SECRET_KEY` server, dengan `DOKU_IS_PRODUCTION=false` dan
+`DOKU_CHECKOUT_URL_SANDBOX=http://127.0.0.1:4010/checkout/v1/payment` (DOKU tiruan, nilai uji, bukan kredensial asli).
+Mencakup signature salah, Client-Id lain, status FAILED, nominal kosong/0/berbeda, pelunasan, dan idempotensi.
 
 ---
 

@@ -248,3 +248,46 @@ res = await request('/api/search', { method: 'POST', body: { mode: 'category', c
 ok(res.status === 401, 'API asli tetap menolak request tanpa sesi walau mode demo aktif');
 
 console.log(`\n${passed} assertion lulus`);
+
+// ── Pembayaran DOKU (opsional: butuh E2E_DOKU_CLIENT_ID + E2E_DOKU_SECRET yang sama dengan server) ─────────────
+// Server diarahkan ke DOKU tiruan (DOKU_IS_PRODUCTION=false, DOKU_CHECKOUT_URL_SANDBOX=http://127.0.0.1:4010/checkout/v1/payment).
+// Safety: runs only against a LOCAL server with an explicit opt-in, so it can never create a real DOKU payment session.
+const localBase = /^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(BASE);
+if (process.env.E2E_DOKU_CLIENT_ID && process.env.E2E_DOKU_SECRET && process.env.E2E_DOKU_FAKE === '1' && localBase) {
+  const { createHash, createHmac, randomUUID } = await import('node:crypto');
+  const clientId = process.env.E2E_DOKU_CLIENT_ID; const secret = process.env.E2E_DOKU_SECRET;
+  const notify = async (payload, { sign = true, client = clientId } = {}) => {
+    const raw = JSON.stringify(payload); const requestId = randomUUID(); const ts = `${new Date().toISOString().slice(0, 19)}Z`;
+    const digest = createHash('sha256').update(raw, 'utf8').digest('base64');
+    const component = [`Client-Id:${client}`, `Request-Id:${requestId}`, `Request-Timestamp:${ts}`, 'Request-Target:/api/doku/notification', `Digest:${digest}`].join('\n');
+    const signature = sign ? `HMACSHA256=${createHmac('sha256', secret).update(component, 'utf8').digest('base64')}` : 'HMACSHA256=invalid';
+    const r = await fetch(`${BASE}/api/doku/notification`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Client-Id': client, 'Request-Id': requestId, 'Request-Timestamp': ts, Signature: signature }, body: raw });
+    return r.status;
+  };
+  const orderStatus = async (inv) => (await request(`/api/orders/${inv}`)).json?.data?.order;
+
+  res = await request('/api/checkout', { method: 'POST', body: { planId: 'STARTER', name: 'Pembeli Uji', email: 'pembeli@test.local', phone: '081234567890' } });
+  ok(res.status === 200 && res.json?.data?.invoiceNumber && res.json.data.paymentUrl === 'http://127.0.0.1:4010/pay/fake', 'checkout membuat order + URL pembayaran DOKU tiruan', `status ${res.status} url ${res.json?.data?.paymentUrl}`);
+  const inv = res.json.data.invoiceNumber; const amount = res.json.data.plan.amount;
+  ok((await orderStatus(inv))?.status === 'PENDING', 'order baru berstatus PENDING');
+
+  ok((await notify({ order: { invoice_number: inv, amount }, transaction: { status: 'SUCCESS' } }, { sign: false })) === 401, 'notifikasi dengan signature salah ditolak 401');
+  ok((await notify({ order: { invoice_number: inv, amount }, transaction: { status: 'SUCCESS' } }, { client: 'BRN-OTHER' })) === 401, 'notifikasi dari Client-Id lain ditolak 401');
+  // Ignored notifications must be acknowledged with 200 (no DOKU retry storm) AND leave the order unchanged.
+  const ignored = async (payload, label) => { const st = await notify(payload); ok(st === 200 && (await orderStatus(inv))?.status === 'PENDING', label, `status ${st}`); };
+  await ignored({ order: { invoice_number: inv, amount }, transaction: { status: 'FAILED' } }, 'status FAILED diabaikan (200, order tetap PENDING)');
+  await ignored({ order: { invoice_number: inv }, transaction: { status: 'SUCCESS' } }, 'SUCCESS tanpa nominal TIDAK melunasi order (200)');
+  await ignored({ order: { invoice_number: inv, amount: 0 }, transaction: { status: 'SUCCESS' } }, 'SUCCESS dengan nominal 0 TIDAK melunasi order (200)');
+  await ignored({ order: { invoice_number: inv, amount: amount - 1 }, transaction: { status: 'SUCCESS' } }, 'SUCCESS dengan nominal berbeda TIDAK melunasi order (200)');
+  await ignored(null, 'body null bersignature valid diabaikan (200, bukan 500)');
+  await ignored({ order: { invoice_number: 12345, amount }, transaction: { status: 'SUCCESS' } }, 'invoice_number bukan string diabaikan (200)');
+  await ignored({ order: { invoice_number: inv, amount }, transaction: { status: 7 } }, 'status bukan string diabaikan (200)');
+  ok((await notify({ order: { invoice_number: inv, amount: `${amount}.00` }, transaction: { status: 'SUCCESS' } })) === 200, 'notifikasi SUCCESS bernominal benar (string ".00") diterima');
+  const paid = await orderStatus(inv);
+  ok(paid?.status === 'PAID' && paid.paidAt, 'order PAID dengan paidAt');
+  await notify({ order: { invoice_number: inv, amount }, transaction: { status: 'SUCCESS' } });
+  await notify({ order: { invoice_number: inv, amount }, transaction: { status: 'FAILED' } });
+  const again = await orderStatus(inv);
+  ok(again?.status === 'PAID' && again.paidAt === paid.paidAt, 'notifikasi berulang idempotent: tetap PAID, paidAt tidak berubah');
+  console.log(`\n${passed} assertion lulus (termasuk pembayaran DOKU)`);
+}

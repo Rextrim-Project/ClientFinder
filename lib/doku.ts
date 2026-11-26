@@ -126,7 +126,10 @@ export function verifyNotificationSignature(headers: Headers, rawBody: string): 
   const signature = headers.get('signature') ?? '';
   const requestId = headers.get('request-id') ?? '';
   const requestTimestamp = headers.get('request-timestamp') ?? '';
-  const clientId = headers.get('client-id') ?? cfg.clientId;
+  // Signature selalu dihitung dengan Client-Id milik merchant ini; header Client-Id lain (bila dikirim) ditolak.
+  const headerClientId = headers.get('client-id');
+  if (headerClientId !== null && headerClientId.trim() !== cfg.clientId) return false;
+  const clientId = cfg.clientId;
 
   if (!signature || !requestId || !requestTimestamp) return false;
 

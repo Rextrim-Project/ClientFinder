@@ -16,6 +16,12 @@ function json(res, status, payload) {
 const server = createServer((req, res) => {
   const url = new URL(req.url, 'http://127.0.0.1');
 
+  // DOKU Checkout tiruan (hanya untuk E2E pembayaran): POST /checkout/v1/payment -> URL pembayaran palsu.
+  if (req.method === 'POST' && url.pathname === '/checkout/v1/payment') {
+    json(res, 200, { message: ['SUCCESS'], response: { payment: { url: 'http://127.0.0.1:4010/pay/fake', token_id: 'fake-token', expired_date: '20991231235959' } } });
+    return;
+  }
+
   if (req.method === 'GET' && url.pathname === '/stats') {
     json(res, 200, { requests: requestCount });
     return;
